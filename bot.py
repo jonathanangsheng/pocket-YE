@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import random
-from datetime import time
+from datetime import date, datetime, time
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -56,19 +56,29 @@ def save_data(data: dict) -> None:
     tmp.replace(DATA_FILE)
 
 
-def pick_lyric() -> str:
+def daily_lyric(tz: str, today: date | None = None) -> str:
+    """The lyric for `today` in `tz`. Drawn once per date, then shared by every chat and /now."""
     lyrics = load_lyrics()
     if not lyrics:
         return "No lyrics configured."
+    day = (today or datetime.now(ZoneInfo(tz)).date()).isoformat()
     data = load_data()
-    remaining = [l for l in data.get("remaining", []) if l in lyrics]
-    if not remaining:
-        remaining = lyrics[:]
-        random.shuffle(remaining)
-    line = remaining.pop()
-    data["remaining"] = remaining
-    save_data(data)
-    return format_lyric(line)
+    daily = data.setdefault("daily", {})
+    if day not in daily:
+        remaining = [l for l in data.get("remaining", []) if l in lyrics]
+        if not remaining:
+            remaining = lyrics[:]
+            random.shuffle(remaining)
+        daily[day] = remaining.pop()
+        data["remaining"] = remaining
+        for old in sorted(daily)[:-3]:  # chats in other timezones may still be a day behind
+            del daily[old]
+        save_data(data)
+    return format_lyric(daily[day])
+
+
+def chat_tz(chat_id: int) -> str:
+    return load_data()["subs"].get(str(chat_id), {}).get("tz", DEFAULT_TZ)
 
 
 def schedule(app_or_ctx, chat_id: int, hhmm: str, tz: str) -> None:
@@ -151,7 +161,8 @@ async def timezone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def now(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if allowed(update):
-        await update.message.reply_text(pick_lyric(), parse_mode=ParseMode.HTML)
+        tz = chat_tz(update.effective_chat.id)
+        await update.message.reply_text(daily_lyric(tz), parse_mode=ParseMode.HTML)
 
 
 async def add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -169,7 +180,7 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def send_daily(context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = context.job.chat_id
     try:
-        await context.bot.send_message(chat_id, pick_lyric(), parse_mode=ParseMode.HTML)
+        await context.bot.send_message(chat_id, daily_lyric(chat_tz(chat_id)), parse_mode=ParseMode.HTML)
     except Forbidden:
         log.info("Chat %s blocked the bot; unsubscribing", chat_id)
         unsubscribe(context, chat_id)

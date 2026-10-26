@@ -3,3 +3,4 @@ data.json
 .pytest_cache/
 .venv/
 __pycache__/
+songs.json
