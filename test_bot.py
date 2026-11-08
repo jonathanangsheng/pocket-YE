@@ -6,11 +6,11 @@ import bot
 
 
 def test_format_lyric_with_song():
-    assert bot.format_lyric("a < b | Song") == "a &lt; b — <i>Song</i>"
+    assert bot.format_lyric("a < b | Song") == "a &lt; b\n\n~ <i>Song</i>"
 
 
 def test_format_lyric_splits_lines():
-    assert bot.format_lyric("one / two | Song") == "one\ntwo — <i>Song</i>"
+    assert bot.format_lyric("one / two | Song") == "one\ntwo\n\n~ <i>Song</i>"
 
 
 def test_random_lyric_picks_from_file(tmp_path, monkeypatch):
