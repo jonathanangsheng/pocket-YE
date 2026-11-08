@@ -27,7 +27,7 @@ def load_lyrics() -> list[str]:
 
 def format_lyric(line: str) -> str:
     lyric, _, song = line.partition("|")
-    out = html.escape(lyric.strip())
+    out = html.escape(lyric.strip()).replace(" / ", "\n")
     if song.strip():
         out += f" — <i>{html.escape(song.strip())}</i>"
     return out
